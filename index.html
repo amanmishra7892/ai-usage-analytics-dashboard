@@ -1,0 +1,907 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Usage Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+<style>
+:root {
+  --bg:#f4f7fb; --card:#fff; --ink:#172033; --muted:#697586;
+  --line:#e6ebf2; --blue:#356df3; --cyan:#12a6a6;
+  --purple:#8264e8; --orange:#f39a38; --red:#e56b75;
+  --shadow:0 8px 24px rgba(31,45,74,.06);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Arial,sans-serif}
+.wrap{max-width:1500px;margin:auto;padding:28px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:24px}
+h1{margin:0 0 7px;font-size:clamp(25px,3vw,34px)}
+.sub{color:var(--muted);margin:0;font-size:14px}
+.status{border:1px solid #dce7ff;background:#eef4ff;color:#2858c7;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:700}
+.filters{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr)) auto;gap:12px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-bottom:18px}
+.filter label{display:block;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:7px}
+select,input{width:100%;border:1px solid #dce2eb;border-radius:9px;padding:10px 11px;background:#fff;color:var(--ink);font:inherit}
+select:focus,input:focus{outline:2px solid #dce7ff;border-color:var(--blue)}
+button{border:0;border-radius:9px;background:#172d59;color:#fff;font-weight:700;padding:10px 17px;cursor:pointer;align-self:end;min-height:40px}
+button:hover{background:#24427c}
+.kpis{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+.kpi,.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow)}
+.kpi{padding:16px;min-height:112px}
+.kpi .label{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase}
+.kpi .value{font-size:27px;font-weight:800;margin:12px 0 3px}
+.kpi .note{color:var(--muted);font-size:11px}
+.section-title{margin:25px 0 12px;font-size:17px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.panel{padding:17px;min-width:0;align-self:start}
+.panel h3{margin:0 0 3px;font-size:14px}
+.panel p{margin:0 0 12px;color:var(--muted);font-size:11px;line-height:1.5}
+.chart-box{height:320px;position:relative}
+.wide{grid-column:1/-1}
+.wide .chart-box{height:300px}
+.heatmap-panel .chart-box{height:auto;min-height:0}
+.heatmap-scroll{overflow-x:auto;padding:4px 2px 10px}
+.heatmap-grid{display:grid;gap:5px;min-width:850px;align-items:stretch}
+.heatmap-corner,.heatmap-col,.heatmap-row{display:flex;align-items:center;justify-content:center;padding:8px 6px;font-size:11px;font-weight:700;color:#526078;text-align:center}
+.heatmap-row{justify-content:flex-start;text-align:left;white-space:normal}
+.heatmap-cell{min-height:42px;border:1px solid rgba(35,65,110,.08);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.heatmap-cell:hover{outline:2px solid #356df3;z-index:1}
+.heatmap-legend{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0 0 185px;color:var(--muted);font-size:11px}
+.heatmap-gradient{width:150px;height:12px;border-radius:99px;background:linear-gradient(90deg,#eef4ff,#9dbaf8,#356df3,#173b91)}
+.insights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.breakdown{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{background:#f1f5fb;border:1px solid #e3eaf4;border-radius:9px;padding:8px 10px;font-size:12px}
+.chip b{color:#1e3d79}
+.table-panel{margin-top:14px}
+.table-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
+.table-tools input{max-width:360px}
+.table-wrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:#f7f9fc;color:#526078;font-size:10px;text-transform:uppercase;z-index:1}
+tr:hover td{background:#f8faff}
+.foot{text-align:center;color:var(--muted);font-size:11px;padding:22px 0 4px}
+.error{padding:14px;margin-bottom:16px;background:#fff2f1;border:1px solid #ffd5d1;color:#a33b32;border-radius:12px;display:none}
+
+@media(max-width:1100px){
+ .kpis{grid-template-columns:repeat(4,1fr)}
+ .filters{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+ .wrap{padding:16px}
+ header{display:block}
+ .status{display:inline-block;margin-top:12px}
+ .kpis{grid-template-columns:repeat(2,1fr)}
+ .charts,.insights{grid-template-columns:1fr}
+ .wide{grid-column:auto}
+ .filters{grid-template-columns:1fr 1fr}
+ .chart-box{height:275px}
+ .wide .chart-box{height:300px}
+}
+@media(max-width:430px){
+ .filters{grid-template-columns:1fr}
+ .kpi .value{font-size:23px}
+}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<header>
+ <div>
+  <h1>AI Usage Analytics Dashboard</h1>
+  <p class="sub">Explore AI adoption, tool preferences, usage purposes, productivity, time saved and user satisfaction.</p>
+ </div>
+ <div class="status" id="datasetStatus">Loading dataset…</div>
+</header>
+
+<div class="error" id="errorBox"></div>
+
+<section class="filters">
+ <div class="filter"><label>User type</label><select id="userTypeFilter"><option value="">All user types</option></select></div>
+ <div class="filter"><label>Country</label><select id="countryFilter"><option value="">All countries</option></select></div>
+ <div class="filter"><label>AI tool</label><select id="toolFilter"><option value="">All AI tools</option></select></div>
+ <div class="filter"><label>Age group</label><select id="ageFilter"><option value="">All age groups</option></select></div>
+ <button id="resetBtn" type="button">Reset filters</button>
+</section>
+
+<section class="kpis">
+ <div class="kpi"><div class="label">Total respondents</div><div class="value" id="kpiTotal">—</div><div class="note">Unique User_ID count</div></div>
+ <div class="kpi"><div class="label">Students / Professionals</div><div class="value" id="kpiTypes">—</div><div class="note">Students / Professionals</div></div>
+ <div class="kpi"><div class="label">Avg productivity</div><div class="value" id="kpiProductivity">—</div><div class="note">Out of 10</div></div>
+ <div class="kpi"><div class="label">Avg satisfaction</div><div class="value" id="kpiSatisfaction">—</div><div class="note">Out of 10</div></div>
+ <div class="kpi"><div class="label">Avg time saved</div><div class="value" id="kpiTime">—</div><div class="note">Hours per week</div></div>
+ <div class="kpi"><div class="label">Would recommend</div><div class="value" id="kpiRecommend">—</div><div class="note">Yes among answered responses</div></div>
+ <div class="kpi"><div class="label">Paid users</div><div class="value" id="kpiPaid">—</div><div class="note">Monthly AI cost above zero</div></div>
+</section>
+
+<h2 class="section-title">Usage and audience insights</h2>
+
+<section class="charts">
+ <article class="panel">
+  <h3>1. Students vs professionals</h3>
+  <p>Respondent share by user type</p>
+  <div class="chart-box"><canvas id="chart1"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>2. AI tool share</h3>
+  <p>Share of respondents by AI tool, sorted highest to lowest</p>
+  <div class="chart-box"><canvas id="chart2"></canvas></div>
+ </article>
+
+ <article class="panel wide">
+  <h3>3. What AI is used for</h3>
+  <p>Respondent count by purpose, sorted highest to lowest</p>
+  <div class="chart-box"><canvas id="chart3"></canvas></div>
+ </article>
+
+ <article class="panel wide heatmap-panel">
+  <h3>4. AI tools used for each purpose</h3>
+  <p>Each cell shows the number of respondents. Darker blue means more respondents. Compare across a row for purposes or down a column for tools.</p>
+  <div class="chart-box"><div id="heatmap4"></div></div>
+ </article>
+
+ <article class="panel">
+  <h3>5. AI use vs time saved</h3>
+  <p>Each point is a respondent; colour indicates user type</p>
+  <div class="chart-box"><canvas id="chart5"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>6. Productivity by usage band</h3>
+  <p>Average productivity score across daily AI usage bands</p>
+  <div class="chart-box"><canvas id="chart6"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>7. Satisfaction by tool</h3>
+  <p>Average satisfaction score for each AI tool</p>
+  <div class="chart-box"><canvas id="chart7"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>8. Would recommend by tool</h3>
+  <p>100% distribution of Yes, No and Maybe answers by tool</p>
+  <div class="chart-box"><canvas id="chart8"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>9. Paid vs free users</h3>
+  <p>Average productivity and satisfaction scores</p>
+  <div class="chart-box"><canvas id="chart9"></canvas></div>
+ </article>
+
+ <article class="panel">
+  <h3>10. Respondents by country</h3>
+  <p>Respondent count by country</p>
+  <div class="chart-box"><canvas id="chart10"></canvas></div>
+ </article>
+</section>
+
+<h2 class="section-title">Demographic breakdown</h2>
+
+<section class="insights">
+ <article class="panel">
+  <h3>Age group distribution</h3>
+  <p>Respondents by age group in the current filter selection</p>
+  <div id="ageBreakdown" class="breakdown"></div>
+ </article>
+ <article class="panel">
+  <h3>Education distribution</h3>
+  <p>Respondents by education level in the current filter selection</p>
+  <div id="educationBreakdown" class="breakdown"></div>
+ </article>
+</section>
+
+<section class="panel table-panel">
+ <h3>Cleaned survey data</h3>
+ <p>Search the filtered records. Tasks_Performed is included in the table.</p>
+ <div class="table-tools">
+  <input id="tableSearch" type="search" placeholder="Search table records…">
+  <span id="tableCount" class="sub"></span>
+ </div>
+ <div class="table-wrap">
+  <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+ </div>
+</section>
+
+<div class="foot">AI Usage Analytics • Built with Python, Pandas, HTML, CSS, JavaScript and Chart.js</div>
+</div>
+
+<script>
+const DATA_URL="data/processed/cleaned_data.csv";
+
+const REQUIRED={
+ id:["User_ID","user_id"],
+ userType:["User_Type","user_type"],
+ country:["Country","country"],
+ age:["Age","age"],
+ ageGroup:["Age_Group","age_group"],
+ education:["Education_Level","Education","Highest_Education"],
+ tool:["AI_Tool","AI_Tools","ai_tool"],
+ purpose:["AI_Purpose","Purpose","ai_purpose"],
+ usage:["AI_Usage_Hours_Per_Day","AI_Usage_Hours","Daily_AI_Usage_Hours"],
+ usageBand:["Usage_Band","usage_band"],
+ timeSaved:["Time_Saved_Hours_Per_Week","Time_Saved_Hours","time_saved_hours_per_week"],
+ productivity:["Productivity_Score","productivity_score"],
+ satisfaction:["Satisfaction_Score","satisfaction_score"],
+ recommend:["Would_Recommend","would_recommend"],
+ cost:["Monthly_AI_Cost","monthly_ai_cost"],
+ tasks:["Tasks_Performed","tasks_performed"]
+};
+
+let allRows=[],filteredRows=[],charts={},tableColumns=[];
+
+const $=id=>document.getElementById(id);
+const cleanText=v=>String(v??"").trim();
+
+function number(v){
+ if(v===null||v===undefined||cleanText(v)==="")return NaN;
+ const n=Number(String(v).replace(/[$,₹\s]/g,""));
+ return Number.isFinite(n)?n:NaN;
+}
+
+function mean(a){
+ const v=a.filter(Number.isFinite);
+ return v.length?v.reduce((x,y)=>x+y,0)/v.length:NaN;
+}
+
+const pct=(a,b)=>b?100*a/b:0;
+const yes=v=>cleanText(v).toLowerCase()==="yes";
+
+const palette=["#356df3","#12a6a6","#8264e8","#f39a38","#e56b75","#6b91c9","#82b66b","#b17bd0","#d5a329"];
+const fixedUserColors={Student:"#356df3",Professional:"#12a6a6"};
+
+function toolColor(name){
+ let h=0;
+ for(const c of String(name))h=(h*31+c.charCodeAt(0))>>>0;
+ return palette[h%palette.length];
+}
+
+function findColumn(headers,aliases){
+ for(const a of aliases){
+  const h=headers.find(x=>x.toLowerCase()===a.toLowerCase());
+  if(h)return h;
+ }
+ return null;
+}
+
+function parseCSV(text){
+ const rows=[];
+ let row=[],cell="",quoted=false;
+
+ for(let i=0;i<text.length;i++){
+  const c=text[i],n=text[i+1];
+
+  if(c==='"'&&quoted&&n==='"'){cell+='"';i++;}
+  else if(c==='"')quoted=!quoted;
+  else if(c===","&&!quoted){row.push(cell);cell="";}
+  else if((c==="\n"||c==="\r")&&!quoted){
+   if(c==="\r"&&n==="\n")i++;
+   row.push(cell);cell="";
+   if(row.some(x=>x!==""))rows.push(row);
+   row=[];
+  }else cell+=c;
+ }
+
+ row.push(cell);
+ if(row.some(x=>x!==""))rows.push(row);
+
+ const headers=(rows.shift()||[]).map(h=>h.trim().replace(/^\uFEFF/,""));
+ return rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??""])));
+}
+
+function ageGroup(age){
+ if(!Number.isFinite(age)||age<16)return "Not stated";
+ if(age<=20)return "16–20";
+ if(age<=25)return "21–25";
+ if(age<=35)return "26–35";
+ if(age<=50)return "36–50";
+ return "51+";
+}
+
+function usageBand(hours){
+ if(!Number.isFinite(hours))return "Not stated";
+ if(hours<1)return "under 1 h";
+ if(hours<2)return "1–2 h";
+ if(hours<4)return "2–4 h";
+ return "4 h+";
+}
+
+function normalizeCountry(value){
+ const raw=cleanText(value);
+ if(!raw)return "Not stated";
+ const key=raw.toLowerCase().replace(/[.]/g,"").replace(/\s+/g," ").trim();
+
+ const aliases={
+  india:"India",in:"India",
+  "united states":"United States",
+  "united states of america":"United States",
+  usa:"United States","u s a":"United States",
+  us:"United States","u s":"United States",
+  "united kingdom":"United Kingdom",
+  "u k":"United Kingdom",uk:"United Kingdom",
+  "great britain":"United Kingdom",britain:"United Kingdom",
+  canada:"Canada",pakistan:"Pakistan",philippines:"Philippines",
+  brazil:"Brazil",australia:"Australia",nigeria:"Nigeria",
+  germany:"Germany",france:"France",kenya:"Kenya"
+ };
+ return aliases[key]||raw.replace(/\s+/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+function normalizeRows(raw){
+ if(!raw.length)throw new Error("The cleaned CSV contains no data rows.");
+
+ const headers=Object.keys(raw[0]),cols={};
+ for(const [k,a] of Object.entries(REQUIRED))cols[k]=findColumn(headers,a);
+
+ const essential=["id","userType","country","age","tool","purpose","usage","timeSaved","productivity","satisfaction","recommend","cost","tasks"];
+ const missing=essential.filter(k=>!cols[k]);
+
+ if(missing.length)throw new Error("Missing required CSV columns: "+missing.map(k=>REQUIRED[k][0]).join(", "));
+
+ // Remove duplicate respondent IDs so one respondent is counted once.
+ const seenIds=new Set();
+ const uniqueRaw=raw.filter(r=>{
+  const id=cleanText(r[cols.id]);
+  if(!id)return true;
+  if(seenIds.has(id))return false;
+  seenIds.add(id);
+  return true;
+ });
+
+ return uniqueRaw.map(r=>{
+  const age=number(r[cols.age]);
+  const usage=number(r[cols.usage]);
+  const cost=number(r[cols.cost]);
+  const rawType=cleanText(r[cols.userType]).toLowerCase();
+
+  const userType=
+   rawType==="student"||rawType==="students"?"Student":
+   rawType==="professional"||rawType==="professionals"?"Professional":
+   cleanText(r[cols.userType])||"Not stated";
+
+  const storedAge=cols.ageGroup?cleanText(r[cols.ageGroup]):"";
+  const storedBand=cols.usageBand?cleanText(r[cols.usageBand]):"";
+
+  return {
+   ...r,
+   __id:cleanText(r[cols.id]),
+   __userType:userType,
+   __country:normalizeCountry(r[cols.country]),
+   __age:age,
+   __ageGroup:storedAge||ageGroup(age),
+   __education:cols.education?(cleanText(r[cols.education])||"Not stated"):"Not stated",
+   __tool:cleanText(r[cols.tool])||"Not stated",
+   __purpose:cleanText(r[cols.purpose])||"Not stated",
+   __usage:usage,
+   __usageBand:storedBand||usageBand(usage),
+   __timeSaved:number(r[cols.timeSaved]),
+   __productivity:number(r[cols.productivity]),
+   __satisfaction:number(r[cols.satisfaction]),
+   __recommend:cleanText(r[cols.recommend]),
+   __cost:cost,
+   __paid:Number.isFinite(cost)&&cost>0
+  };
+ });
+}
+
+function escapeHTML(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function counts(rows,key){
+ const m=new Map();
+ rows.forEach(r=>{
+  const v=r[key]||"Not stated";
+  m.set(v,(m.get(v)||0)+1);
+ });
+ return [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+}
+
+function fillSelect(id,values){
+ const el=$(id),first=el.options[0].outerHTML;
+ el.innerHTML=first+values.map(v=>`<option value="${escapeHTML(v)}">${escapeHTML(v)}</option>`).join("");
+}
+
+function setupFilters(){
+ fillSelect("userTypeFilter",[...new Set(allRows.map(r=>r.__userType))].sort());
+ fillSelect("countryFilter",[...new Set(allRows.map(r=>r.__country))].sort());
+ fillSelect("toolFilter",[...new Set(allRows.map(r=>r.__tool))].sort());
+ fillSelect("ageFilter",["16–20","21–25","26–35","36–50","51+","Not stated"].filter(x=>allRows.some(r=>r.__ageGroup===x)));
+
+ ["userTypeFilter","countryFilter","toolFilter","ageFilter"].forEach(id=>$(id).addEventListener("change",applyFilters));
+
+ $("resetBtn").addEventListener("click",()=>{
+  ["userTypeFilter","countryFilter","toolFilter","ageFilter"].forEach(id=>$(id).value="");
+  $("tableSearch").value="";
+  applyFilters();
+ });
+
+ $("tableSearch").addEventListener("input",renderTable);
+}
+
+function applyFilters(){
+ const u=$("userTypeFilter").value;
+ const c=$("countryFilter").value;
+ const t=$("toolFilter").value;
+ const a=$("ageFilter").value;
+
+ filteredRows=allRows.filter(r=>
+  (!u||r.__userType===u)&&
+  (!c||r.__country===c)&&
+  (!t||r.__tool===t)&&
+  (!a||r.__ageGroup===a)
+ );
+ renderAll();
+}
+
+function setText(id,v){$(id).textContent=v;}
+
+function updateKPIs(rows){
+ const respondentIds=new Set(rows.map(r=>r.__id).filter(Boolean));
+ const total=respondentIds.size;
+
+ const students=rows.filter(r=>r.__userType==="Student").length;
+ const professionals=rows.filter(r=>r.__userType==="Professional").length;
+
+ const prod=mean(rows.map(r=>r.__productivity));
+ const sat=mean(rows.map(r=>r.__satisfaction));
+ const time=mean(rows.map(r=>r.__timeSaved));
+
+ const answered=rows.filter(r=>r.__recommend!=="");
+ const recommended=answered.filter(r=>yes(r.__recommend)).length;
+ const paid=rows.filter(r=>Number.isFinite(r.__cost)&&r.__cost>0).length;
+
+ setText("kpiTotal",total.toLocaleString());
+ setText("kpiTypes",`${students} / ${professionals}`);
+ setText("kpiProductivity",Number.isFinite(prod)?prod.toFixed(2):"—");
+ setText("kpiSatisfaction",Number.isFinite(sat)?sat.toFixed(2):"—");
+ setText("kpiTime",Number.isFinite(time)?time.toFixed(1)+" h":"—");
+ setText("kpiRecommend",answered.length?pct(recommended,answered.length).toFixed(1)+"%":"—");
+ setText("kpiPaid",total?pct(paid,total).toFixed(1)+"%":"—");
+}
+
+function destroyChart(id){
+ if(charts[id]){charts[id].destroy();delete charts[id];}
+}
+
+function baseOptions(horizontal=false){
+ return {
+  responsive:true,
+  maintainAspectRatio:false,
+  indexAxis:horizontal?"y":"x",
+  layout:{padding:{top:8,right:22,bottom:4,left:4}},
+  plugins:{
+   legend:{position:"bottom",labels:{boxWidth:10,usePointStyle:true,padding:14,font:{size:11}}},
+   datalabels:{display:false},
+   tooltip:{padding:10,titleFont:{size:12},bodyFont:{size:11}}
+  },
+  scales:{
+   x:{grid:{display:false},ticks:{font:{size:10},color:"#526078"}},
+   y:{beginAtZero:true,grid:{color:"#edf1f6"},ticks:{font:{size:10},color:"#526078"}}
+  }
+ };
+}
+
+function setChartHeight(id,count,min=280,row=32){
+ const canvas=$(id);
+ if(canvas&&canvas.parentElement)canvas.parentElement.style.height=Math.max(min,count*row)+"px";
+}
+
+function heatColor(value,max){
+ if(!value||!max)return "#f3f6fb";
+ const t=value/max;
+ const a=[238,244,255],b=[23,59,145];
+ const c=a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+ return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function renderPurposeHeatmap(rows){
+ const host=$("heatmap4");
+ const purposes=[...new Set(rows.map(r=>r.__purpose||"Not stated"))].sort();
+ const tools=[...new Set(rows.map(r=>r.__tool||"Not stated"))].sort();
+
+ if(!purposes.length||!tools.length){
+  host.innerHTML="<p class='sub'>No data for this filter selection.</p>";
+  return;
+ }
+
+ const lookup={};
+ rows.forEach(r=>{
+  const key=(r.__tool||"Not stated")+"|||"+(r.__purpose||"Not stated");
+  lookup[key]=(lookup[key]||0)+1;
+ });
+
+ const matrix=tools.map(tool=>purposes.map(purpose=>lookup[tool+"|||"+purpose]||0));
+ const max=Math.max(1,...matrix.flat());
+
+ host.innerHTML="";
+ const scroll=document.createElement("div");
+ scroll.className="heatmap-scroll";
+
+ const grid=document.createElement("div");
+ grid.className="heatmap-grid";
+ grid.style.gridTemplateColumns=`180px repeat(${purposes.length},minmax(72px,1fr))`;
+
+ const corner=document.createElement("div");
+ corner.className="heatmap-corner";
+ corner.textContent="AI tool ↓ / Purpose →";
+ grid.appendChild(corner);
+
+ purposes.forEach(p=>{
+  const el=document.createElement("div");
+  el.className="heatmap-col";
+  el.textContent=p;
+  el.title="Purpose: "+p;
+  grid.appendChild(el);
+ });
+
+ tools.forEach((tool,i)=>{
+  const label=document.createElement("div");
+  label.className="heatmap-row";
+  label.textContent=tool;
+  grid.appendChild(label);
+
+  purposes.forEach((purpose,j)=>{
+   const value=matrix[i][j];
+   const cell=document.createElement("div");
+   cell.className="heatmap-cell";
+   cell.textContent=value;
+   cell.style.backgroundColor=heatColor(value,max);
+   cell.style.color=value/max>.52?"#fff":"#24344d";
+   cell.title=`${tool} • ${purpose}: ${value} respondents`;
+   grid.appendChild(cell);
+  });
+ });
+
+ scroll.appendChild(grid);
+ host.appendChild(scroll);
+
+ const legend=document.createElement("div");
+ legend.className="heatmap-legend";
+ legend.innerHTML="<span>Fewer respondents</span><span class='heatmap-gradient'></span><span>More respondents</span><span style='margin-left:auto'>Cell number = respondent count</span>";
+ host.appendChild(legend);
+}
+
+function makeChart(id,config){
+ destroyChart(id);
+ config.options=config.options||{};
+ config.options.plugins=config.options.plugins||{};
+ config.options.plugins.datalabels=config.options.plugins.datalabels||{display:false};
+ charts[id]=new Chart($(id),config);
+}
+
+function avgBy(rows,groupKey,valueKey){
+ const groups={};
+ rows.forEach(r=>{
+  if(Number.isFinite(r[valueKey]))(groups[r[groupKey]]??=[]).push(r[valueKey]);
+ });
+ return Object.entries(groups).map(([k,v])=>[k,mean(v)]).sort((a,b)=>b[1]-a[1]);
+}
+
+function correlation(rows){
+ const pts=rows.filter(r=>Number.isFinite(r.__usage)&&Number.isFinite(r.__timeSaved));
+ if(pts.length<2)return NaN;
+
+ const mx=mean(pts.map(r=>r.__usage));
+ const my=mean(pts.map(r=>r.__timeSaved));
+ let n=0,dx=0,dy=0;
+
+ pts.forEach(r=>{
+  n+=(r.__usage-mx)*(r.__timeSaved-my);
+  dx+=(r.__usage-mx)**2;
+  dy+=(r.__timeSaved-my)**2;
+ });
+
+ return dx&&dy?n/Math.sqrt(dx*dy):NaN;
+}
+
+function renderCharts(rows){
+
+ const typeCounts=counts(rows,"__userType");
+
+ makeChart("chart1",{
+  type:"doughnut",
+  data:{
+   labels:typeCounts.map(x=>x[0]),
+   datasets:[{
+    data:typeCounts.map(x=>x[1]),
+    backgroundColor:typeCounts.map(x=>fixedUserColors[x[0]]||"#aab4c3"),
+    borderWidth:0
+   }]
+  },
+  options:{
+   responsive:true,maintainAspectRatio:false,
+   plugins:{
+    legend:{position:"bottom"},
+    tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} respondents (${pct(ctx.raw,ctx.dataset.data.reduce((a,b)=>a+b,0)).toFixed(1)}%)`}},
+    datalabels:{
+     color:"#fff",font:{weight:"bold",size:12},
+     formatter:(v,ctx)=>{
+      const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+      return pct(v,total).toFixed(0)+"%";
+     }
+    }
+   }
+  }
+ });
+
+ const toolCounts=counts(rows,"__tool");
+ setChartHeight("chart2",toolCounts.length,320,34);
+
+ makeChart("chart2",{
+  type:"bar",
+  data:{
+   labels:toolCounts.map(x=>x[0]),
+   datasets:[{
+    data:toolCounts.map(x=>pct(x[1],rows.length)),
+    backgroundColor:toolCounts.map(x=>toolColor(x[0])),
+    borderRadius:5
+   }]
+  },
+  options:{
+   ...baseOptions(true),
+   plugins:{
+    legend:{display:false},
+    datalabels:{anchor:"end",align:"right",color:"#344054",formatter:v=>v.toFixed(1)+"%"}
+   },
+   scales:{
+    x:{beginAtZero:true,max:Math.max(10,Math.ceil(Math.max(...toolCounts.map(x=>pct(x[1],rows.length)),0)/10)*10),title:{display:true,text:"Share of respondents (%)"},ticks:{callback:v=>v+"%"},grid:{color:"#edf1f6"}},
+    y:{title:{display:true,text:"AI tool"},grid:{display:false}}
+   }
+  }
+ });
+
+ const purposeCounts=counts(rows,"__purpose");
+ setChartHeight("chart3",purposeCounts.length,280,32);
+
+ makeChart("chart3",{
+  type:"bar",
+  data:{
+   labels:purposeCounts.map(x=>x[0]),
+   datasets:[{
+    data:purposeCounts.map(x=>x[1]),
+    backgroundColor:"#12a6a6",
+    borderRadius:5
+   }]
+  },
+  options:{
+   ...baseOptions(true),
+   plugins:{
+    legend:{display:false},
+    datalabels:{anchor:"end",align:"right",color:"#344054",formatter:v=>v}
+   },
+   scales:{
+    x:{beginAtZero:true,title:{display:true,text:"Number of respondents"},grid:{color:"#edf1f6"}},
+    y:{title:{display:true,text:"AI purpose"},grid:{display:false}}
+   }
+  }
+ });
+
+ renderPurposeHeatmap(rows);
+
+ const userTypes=[...new Set(rows.map(r=>r.__userType))].sort();
+ const scatterSets=userTypes.map(type=>({
+  label:type,
+  data:rows.filter(r=>r.__userType===type&&Number.isFinite(r.__usage)&&Number.isFinite(r.__timeSaved)).map(r=>({x:r.__usage,y:r.__timeSaved})),
+  backgroundColor:fixedUserColors[type]||"#aab4c3",
+  pointRadius:5,pointHoverRadius:7
+ }));
+
+ const corr=correlation(rows);
+ $("chart5").closest("article").querySelector("p").textContent=`Each point is a respondent; colour indicates user type • Correlation: ${Number.isFinite(corr)?corr.toFixed(2):"N/A"}`;
+
+ makeChart("chart5",{
+  type:"scatter",
+  data:{datasets:scatterSets},
+  options:{
+   responsive:true,maintainAspectRatio:false,
+   plugins:{legend:{position:"bottom"}},
+   scales:{
+    x:{title:{display:true,text:"Daily AI usage (hours per day)"},grid:{color:"#edf1f6"}},
+    y:{title:{display:true,text:"Time saved (hours per week)"},beginAtZero:true,grid:{color:"#edf1f6"}}
+   }
+  }
+ });
+
+ const bands=["under 1 h","1–2 h","2–4 h","4 h+","Not stated"];
+ const prod=bands.map(b=>mean(rows.filter(r=>r.__usageBand===b).map(r=>r.__productivity)));
+
+ makeChart("chart6",{
+  type:"bar",
+  data:{
+   labels:bands,
+   datasets:[{
+    label:"Average productivity",
+    data:prod,
+    backgroundColor:["#8264e8","#356df3","#12a6a6","#f39a38","#94a3b8"],
+    borderRadius:5
+   }]
+  },
+  options:{
+   ...baseOptions(),
+   plugins:{
+    legend:{display:false},
+    datalabels:{anchor:"end",align:"top",color:"#344054",formatter:v=>Number.isFinite(v)?v.toFixed(2):""}
+   },
+   scales:{
+    x:{title:{display:true,text:"Daily AI usage band"},grid:{display:false}},
+    y:{beginAtZero:true,max:10,title:{display:true,text:"Average productivity score (0–10)"},grid:{color:"#edf1f6"}}
+   }
+  }
+ });
+
+ const satisfaction=avgBy(rows,"__tool","__satisfaction");
+ setChartHeight("chart7",satisfaction.length,320,34);
+
+ makeChart("chart7",{
+  type:"bar",
+  data:{
+   labels:satisfaction.map(x=>x[0]),
+   datasets:[{
+    label:"Average satisfaction",
+    data:satisfaction.map(x=>x[1]),
+    backgroundColor:satisfaction.map(x=>toolColor(x[0])),
+    borderRadius:5
+   }]
+  },
+  options:{
+   ...baseOptions(true),
+   plugins:{
+    legend:{display:false},
+    datalabels:{anchor:"end",align:"right",color:"#344054",formatter:v=>v.toFixed(2)}
+   },
+   scales:{
+    x:{min:0,max:10,title:{display:true,text:"Average satisfaction score (0–10)"},grid:{color:"#edf1f6"}},
+    y:{title:{display:true,text:"AI tool"},grid:{display:false}}
+   }
+  }
+ });
+
+ const recTools=[...new Set(rows.map(r=>r.__tool))].sort();
+ setChartHeight("chart8",recTools.length,320,34);
+ const recLabels=["Yes","No","Maybe"];
+
+ const recData=recLabels.map(label=>recTools.map(tool=>{
+  const answered=rows.filter(r=>r.__tool===tool&&r.__recommend!=="");
+  return answered.length?pct(answered.filter(r=>r.__recommend.toLowerCase()===label.toLowerCase()).length,answered.length):0;
+ }));
+
+ makeChart("chart8",{
+  type:"bar",
+  data:{
+   labels:recTools,
+   datasets:recLabels.map((label,i)=>({
+    label,data:recData[i],
+    backgroundColor:["#12a6a6","#e56b75","#f39a38"][i]
+   }))
+  },
+  options:{
+   ...baseOptions(),
+   indexAxis:"y",
+   plugins:{legend:{position:"bottom"},datalabels:{display:false}},
+   scales:{
+    x:{stacked:true,max:100,title:{display:true,text:"Share of answered recommendations (%)"},ticks:{callback:v=>v+"%"},grid:{display:false}},
+    y:{stacked:true,title:{display:true,text:"AI tool"},grid:{display:false}}
+   }
+  }
+ });
+
+ const paidGroups=[
+  {label:"Free",rows:rows.filter(r=>!r.__paid)},
+  {label:"Paid",rows:rows.filter(r=>r.__paid)}
+ ];
+
+ makeChart("chart9",{
+  type:"bar",
+  data:{
+   labels:["Free","Paid"],
+   datasets:[
+    {label:"Productivity",data:paidGroups.map(g=>mean(g.rows.map(r=>r.__productivity))),backgroundColor:"#356df3",borderRadius:4},
+    {label:"Satisfaction",data:paidGroups.map(g=>mean(g.rows.map(r=>r.__satisfaction))),backgroundColor:"#12a6a6",borderRadius:4}
+   ]
+  },
+  options:{
+   ...baseOptions(),
+   scales:{
+    x:{title:{display:true,text:"Payment type"},grid:{display:false}},
+    y:{beginAtZero:true,max:10,title:{display:true,text:"Average score (0–10)"},grid:{color:"#edf1f6"}}
+   }
+  }
+ });
+
+ const countryCounts=counts(rows,"__country").filter(x=>x[0]!=="Not stated");
+ $("chart10").parentElement.style.height=Math.max(320,countryCounts.length*34)+"px";
+
+ makeChart("chart10",{
+  type:"bar",
+  data:{
+   labels:countryCounts.map(x=>x[0]),
+   datasets:[{
+    label:"Respondents",
+    data:countryCounts.map(x=>x[1]),
+    backgroundColor:"#356df3",
+    borderRadius:6,
+    barThickness:19,
+    maxBarThickness:22
+   }]
+  },
+  options:{
+   ...baseOptions(true),
+   layout:{padding:{top:8,right:30,bottom:5,left:4}},
+   plugins:{
+    legend:{display:false},
+    datalabels:{display:true,anchor:"end",align:"right",clamp:true,color:"#172033",font:{size:12,weight:"bold"},formatter:v=>v}
+   },
+   scales:{
+    x:{beginAtZero:true,grace:"12%",ticks:{precision:0,color:"#526078",font:{size:10}},title:{display:true,text:"Number of respondents"},grid:{color:"#edf1f6"}},
+    y:{grid:{display:false},ticks:{color:"#172033",font:{size:11,weight:"600"}}}
+   }
+  }
+ });
+}
+
+function renderBreakdown(id,rows,key){
+ const values=counts(rows,key);
+ $(id).innerHTML=values.length?
+  values.map(([label,count])=>`<span class="chip">${escapeHTML(label)} <b>${count}</b> <span style="color:#78869a">(${pct(count,rows.length).toFixed(1)}%)</span></span>`).join("")
+  :'<span class="sub">No data for this selection.</span>';
+}
+
+function renderTable(){
+ const q=$("tableSearch").value.trim().toLowerCase();
+ const shown=filteredRows.filter(r=>!q||tableColumns.some(c=>cleanText(r[c]).toLowerCase().includes(q)));
+ const limit=shown.slice(0,500);
+
+ $("tableHead").innerHTML="<tr>"+tableColumns.map(c=>`<th>${escapeHTML(c)}</th>`).join("")+"</tr>";
+ $("tableBody").innerHTML=limit.map(r=>"<tr>"+tableColumns.map(c=>`<td>${escapeHTML(r[c])}</td>`).join("")+"</tr>").join("");
+
+ setText("tableCount",`${shown.length.toLocaleString()} matching rows${shown.length>500?" • showing first 500":""}`);
+}
+
+function renderAll(){
+ updateKPIs(filteredRows);
+ renderCharts(filteredRows);
+ renderBreakdown("ageBreakdown",filteredRows,"__ageGroup");
+ renderBreakdown("educationBreakdown",filteredRows,"__education");
+ renderTable();
+ setText("datasetStatus",`${allRows.length} unique respondents loaded • ${filteredRows.length} shown`);
+}
+
+async function init(){
+ try{
+  if(typeof ChartDataLabels!=="undefined")Chart.register(ChartDataLabels);
+
+  const response=await fetch(DATA_URL);
+  if(!response.ok)throw new Error(`Could not load ${DATA_URL} (HTTP ${response.status}). Confirm the CSV is in data/processed/.`);
+
+  const csv=await response.text();
+  const raw=parseCSV(csv);
+
+  allRows=normalizeRows(raw);
+  filteredRows=[...allRows];
+  tableColumns=Object.keys(raw[0]||{});
+
+  setupFilters();
+  renderAll();
+
+ }catch(err){
+  $("errorBox").style.display="block";
+  $("errorBox").textContent="Dashboard could not start: "+err.message+" Run it through a local server (python -m http.server 8000) or GitHub Pages, not by double-clicking the HTML file.";
+  setText("datasetStatus","Dataset not loaded");
+  console.error(err);
+ }
+}
+
+init();
+</script>
+</body>
+</html>
